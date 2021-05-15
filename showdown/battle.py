@@ -113,9 +113,11 @@ class Battle(ABC):
             battle_copy.opponent.active.try_convert_to_mega(check_in_sets=check_in_sets)
 
         # for reserve pokemon only guess their most likely item/ability/spread and guess all moves
+        # TODO: Change this block to have the other particle filters
         for pkmn in filter(lambda x: x.is_alive(), battle_copy.opponent.reserve):
             pkmn.guess_most_likely_attributes()
 
+        # Active pokemon
         try:
             pokemon_sets = get_pokemon_sets(battle_copy.opponent.active.name)
         except KeyError:
@@ -128,7 +130,17 @@ class Battle(ABC):
         possible_items = sorted(pokemon_sets[ITEM_STRING], key=lambda x: x[1], reverse=True)
         possible_moves = sorted(pokemon_sets[MOVES_STRING], key=lambda x: x[1], reverse=True)
 
+        # This seems to take in the total spreads from the smogon data and return the likeliest few spreads
+        # But it's intended to be extended to return the likeliest spread based on damage
+        print('POSSIBLE SPREADS')
+        print(possible_spreads)
+
         spreads = battle_copy.opponent.active.get_possible_spreads(possible_spreads)
+
+        # spreads will then be a (list of lists?) that contains ev spreads
+        print('SPREADS')
+        print(spreads)
+
         items = battle_copy.opponent.active.get_possible_items(possible_items)
         abilities = battle_copy.opponent.active.get_possible_abilities(possible_abilities)
         expected_moves, chance_moves = battle_copy.opponent.active.get_possible_moves(possible_moves, battle_copy.battle_type)
@@ -142,6 +154,7 @@ class Battle(ABC):
         combinations = list(itertools.product(spreads, items, abilities, chance_move_combinations))
 
         # create battle clones for each of the combinations
+        # The nature of this means that we can't strictly use Xt, we'd need to get the unique values of Xt instead
         battles = list()
         for c in combinations:
             new_battle = deepcopy(battle_copy)
@@ -506,6 +519,8 @@ class Pokemon:
         self.item = item
 
     def set_most_likely_spread(self):
+
+        # TODO: Replace this implementation with get_most_likely_spread() from a particle estimator
         nature, evs, _ = get_most_likely_spread(self.name)
         self.set_spread(nature, evs)
 
@@ -515,13 +530,18 @@ class Pokemon:
         self.set_likely_moves_unless_revealed()
         self.set_most_likely_spread()
 
+
+    # HERE
+    # Based on the construction of this function, we want this get possible spreads to return essentially Xt, 
+    # The matrix of possible spreads
     def get_possible_spreads(self, spreads):
         # update this once you can use previous attacks to rule out spreads
         cumulative_percentage = 0
         possible_spreads = []
         for s in spreads:
+            # Pretty sure s[2] contains the percentage use of that spread
             cumulative_percentage += s[2]
-            possible_spreads.append(s[:2])
+            possible_spreads.append(s[:2]) 
             if s[2] < 20 or cumulative_percentage >= 80:
                 break
 
